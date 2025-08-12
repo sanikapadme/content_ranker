@@ -99,8 +99,4 @@ python app/stress_test.py
 # OR
 python simulation/simulate_users.py
 
-bash
-Copy
-Edit
-docker build -t content-ranker .
-docker run -p 8000:8000 content-ranker
+
