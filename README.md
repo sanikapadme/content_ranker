@@ -1,8 +1,15 @@
+Here’s your README.md without any emojis:
+
+markdown
+Copy
+Edit
 # RL Content Ranker Dashboard
 
 A reinforcement learning–based content ranking system with an interactive dashboard, CTR tracking, and persistent metrics storage.
 
-## 📂 Project Structure
+---
+
+## Project Structure
 content_ranker/
 │
 ├── app/
@@ -23,55 +30,64 @@ content_ranker/
 ├── .gitignore # Git ignore list
 ├── README.md # Project documentation
 
-markdown
+yaml
 Copy
 Edit
 
-## 🚀 Features
-- **Epsilon-Greedy Bandit + Q-Learning Agent** ranking logic.
-- **Real-time Dashboard** with Chart.js graphs.
-- **CTR Tracking** (click-through rate) and average engagement.
-- **Persistent Metrics** (saved to `metrics_history.json`).
-- **User Feedback** (👍 = click, 👎 = skip).
-- **Reset & Train Controls** for experimentation.
-- **Stress Testing** with `stress_test.py` and `simulate_users.py`.
+---
 
-## 📦 Installation
+## Features
+- Epsilon-Greedy Bandit + Q-Learning Agent ranking logic.
+- Real-time Dashboard with Chart.js graphs.
+- CTR Tracking (click-through rate) and average engagement.
+- Persistent Metrics (saved to `metrics_history.json`).
+- User Feedback (`👍` = click, `👎` = skip).
+- Reset & Train Controls for experimentation.
+- Stress Testing with `stress_test.py` and `simulate_users.py`.
 
-1. **Clone repository**
+---
+
+## Installation
+
+### 1. Clone repository
 ```bash
 git clone <your-repo-url>
 cd content_ranker
-Set up Python environment
-
+2. Set up Python environment
 bash
 Copy
 Edit
 python -m venv venv
-# Activate environment:
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-Install dependencies
+Activate environment:
 
+Windows:
+
+bash
+Copy
+Edit
+venv\Scripts\activate
+Mac/Linux:
+
+bash
+Copy
+Edit
+source venv/bin/activate
+3. Install dependencies
 bash
 Copy
 Edit
 pip install -r requirements.txt
-Run backend
-
+Run Backend
 bash
 Copy
 Edit
 uvicorn app.main:app --reload
-Open dashboard
-
+Open Dashboard
 cpp
 Copy
 Edit
 http://127.0.0.1:8000
-📊 Usage
+Usage
 View ranked content in a table.
 
 Click 👍 to simulate a click (positive reward).
@@ -79,25 +95,23 @@ Click 👍 to simulate a click (positive reward).
 Click 👎 to simulate a skip (negative reward).
 
 Charts:
+Average Engagement over time
 
-Average Engagement over time.
-
-CTR over time.
+CTR over time
 
 Buttons:
-
 Reset Order → Clears order but keeps history.
 
 Full Reset → Wipes all data and reloads dummy content.
 
 Train Now → Trains Q-Learning agent from stored history.
 
-🔄 Persistence
+Persistence
 Engagement history and metrics are stored in metrics_history.json.
 
 Data persists across server restarts.
 
-🧪 Stress Testing
+Stress Testing
 Run simulated feedback to see ranking adapt:
 
 bash
@@ -106,3 +120,11 @@ Edit
 python app/stress_test.py
 # OR
 python simulation/simulate_users.py
+Docker (Optional)
+Build and run with Docker:
+
+bash
+Copy
+Edit
+docker build -t content-ranker .
+docker run -p 8000:8000 content-ranker
