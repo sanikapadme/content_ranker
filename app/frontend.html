@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Ranked Feed — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 12px; }
+    h1 { margin: 0 0 12px; }
+    #controls { margin-bottom: 12px; }
+    button { margin-right: 8px; }
+    #spinner { display:none; width:18px; height:18px; border:3px solid #eee; border-top:3px solid #3498db; border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    table { border-collapse: collapse; width:100%; margin-bottom:8px; }
+    th, td { padding:6px 8px; border:1px solid #ccc; text-align:left; font-size:13px; }
+    th.sortable { cursor:pointer; color:#155; }
+    .small { font-size:12px; color:#666; }
+    .up { color: green; } .down { color: red; } .same { color: gray; }
+    .metrics { display:flex; gap:16px; align-items:flex-start; }
+    .metric-block { flex:1; }
+    canvas { width: 320px !important; height: 110px !important; margin-left:8px; }
+    ul.top-list { padding-left:18px; margin:4px 0; }
+    .ctr-badge { font-weight:600; color:#123; margin-left:6px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>Ranked Feed</h1>
+
+  <div id="controls">
+    <button id="reset-order">Reset Order</button>
+    <button id="reset-full">Full Reset</button>
+    <button id="train-now">Train Now</button>
+    <span id="spinner"></span>
+    <span id="status" class="small"></span>
+  </div>
+
+  <table id="feed-table">
+    <thead>
+      <tr>
+        <th class="sortable" data-key="id">Content ID</th>
+        <th class="sortable" data-key="title">Title</th>
+        <th class="sortable" data-key="score">Score</th>
+        <th class="sortable" data-key="rank">Rank (Δ)</th>
+        <th>Boost</th>
+        <th>CTR</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="feed-body"></tbody>
+  </table>
+
+  <div>
+    <button id="prev-page" disabled>Previous</button>
+    <span id="page-info"></span>
+    <button id="next-page">Next</button>
+  </div>
+
+  <div class="metrics" style="margin-top:12px;">
+    <div class="metric-block">
+      <h3>Top Items Metrics</h3>
+      <div id="metrics-body" class="small"></div>
+    </div>
+    <div>
+      <canvas id="engagementChart"></canvas>
+      <canvas id="ctrChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = location.origin;
+    const PAGE_SIZE = 5;
+    let currentPage = 1;
+    let currentSort = {key: 'score', dir: -1};
+    let engagementChart, ctrChart;
+    let autoTimer = null;
+
+    const spinner = document.getElementById('spinner');
+    const status = document.getElementById('status');
+    function setBusy(b=true, txt='') { spinner.style.display = b ? 'inline-block' : 'none'; status.textContent = txt; }
+
+    async function fetchJSON(path, opts) {
+      const res = await fetch(API_BASE + path, opts);
+      if (!res.ok) throw new Error(res.statusText || res.status);
+      return res.json();
+    }
+
+    function arrowHtml(change) {
+      if (change > 0) return `<span class="up">▲ ${Math.abs(change)}</span>`;
+      if (change < 0) return `<span class="down">▼ ${Math.abs(change)}</span>`;
+      return `<span class="same">—</span>`;
+    }
+
+    async function loadFeed(page=1) {
+      setBusy(true, 'Loading feed');
+      try {
+        const offset = (page -1) * PAGE_SIZE;
+        const res = await fetch(`${API_BASE}/ranked-feed?use_qagent=true&limit=${PAGE_SIZE}&offset=${offset}`);
+        if (!res.ok) throw new Error('Feed error');
+        const data = await res.json();
+        renderFeed(data);
+        currentPage = page;
+        document.getElementById('page-info').textContent = `Page ${currentPage}`;
+        document.getElementById('prev-page').disabled = currentPage<=1;
+      } catch (e) {
+        console.error(e);
+        alert('Failed to load feed: ' + e.message);
+      } finally {
+        setBusy(false);
+      }
+      await loadMetrics();
+    }
+
+    function renderFeed(items) {
+      const tbody = document.getElementById('feed-body');
+      tbody.innerHTML = '';
+      items.sort((a,b) => {
+        const k = currentSort.key;
+        let va = (k==='title' ? (a.metadata?.title||'') : (a[k] ?? 0));
+        let vb = (k==='title' ? (b.metadata?.title||'') : (b[k] ?? 0));
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va < vb) return -1 * currentSort.dir;
+        if (va > vb) return 1 * currentSort.dir;
+        return 0;
+      });
+
+      for (const it of items) {
+        const tr = document.createElement('tr');
+        const title = it.metadata?.title || '';
+        const boost = (it.boost_value || 0).toFixed(2);
+        const ctrPct = (it.ctr || 0) * 100;
+        tr.innerHTML = `
+          <td>${it.id}</td>
+          <td>${title}</td>
+          <td>${it.score.toFixed(2)}</td>
+          <td>${it.current_rank ?? ''} ${arrowHtml(it.rank_change || 0)}</td>
+          <td>${boost}</td>
+          <td><span class="ctr-badge">${ctrPct.toFixed(1)}%</span></td>
+          <td>
+            <button onclick="sendFeedback('${it.id}', 'click')">👍</button>
+            <button onclick="sendFeedback('${it.id}', 'skip')">👎</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function sendFeedback(id, event) {
+      setBusy(true, 'Sending feedback');
+      try {
+        await fetchJSON(`/engagement-feedback`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({content_id: id, event, view_time: event==='click' ? 2.0 : 0.0})
+        });
+        await loadFeed(currentPage); // refresh immediately after feedback
+      } catch (e) {
+        console.error(e);
+        alert('Feedback failed: ' + e.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.getElementById('reset-order').addEventListener('click', async () => {
+      setBusy(true, 'Resetting order');
+      await fetchJSON(`/reset`, {method: 'POST'});
+      await loadFeed(1);
+      setBusy(false, 'Order reset');
+    });
+
+    document.getElementById('reset-full').addEventListener('click', async () => {
+      if (!confirm('Full reset will wipe all learning and metrics. Continue?')) return;
+      setBusy(true, 'Full reset');
+      await fetchJSON(`/reset?mode=full`, {method:'POST'});
+      await loadFeed(1);
+      setBusy(false, 'Full reset done');
+    });
+
+    document.getElementById('train-now').addEventListener('click', async () => {
+      setBusy(true, 'Training agent');
+      await fetchJSON('/train-agent?iterations=100', {method:'POST'});
+      await loadFeed(1);
+      setBusy(false, 'Training finished');
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => { if (currentPage>1) loadFeed(currentPage-1); });
+    document.getElementById('next-page').addEventListener('click', () => loadFeed(currentPage+1));
+
+    document.querySelectorAll('th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (currentSort.key === key) currentSort.dir *= -1;
+        else { currentSort.key = key; currentSort.dir = -1; }
+        loadFeed(currentPage);
+      });
+    });
+
+    async function loadMetrics() {
+      try {
+        const data = await fetchJSON('/metrics');
+        const mb = document.getElementById('metrics-body');
+        mb.innerHTML = `
+          <div>Total Content: ${data.total_items}</div>
+          <div>Average Engagement: ${Number(data.avg_engagement).toFixed(3)}</div>
+          <div>CTR: ${(Number(data.ctr || 0) * 100).toFixed(2)}%</div>
+          <div>Avg View Time: ${Number(data.avg_view_time || 0).toFixed(2)} sec</div>
+          <div class="small"><strong>Top Items:</strong>
+            <ul class="top-list">
+              ${data.top_items.map(it => `<li>${it.metadata?.title || it.id} — ${Number(it.score).toFixed(3)} (CTR:${(it.ctr*100||0).toFixed(1)}%)</li>`).join('')}
+            </ul>
+          </div>
+        `;
+        updateCharts(data.history || []);
+      } catch (e) {
+        console.error('metrics load failed', e);
+      }
+    }
+
+    function updateCharts(history) {
+      if (!history || history.length === 0) return;
+      const labels = history.map(h => new Date(h.timestamp*1000).toLocaleTimeString());
+      const avgEng = history.map(h => h.avg_engagement || 0);
+      const ctr = history.map(h => h.ctr || 0);
+
+      if (engagementChart) engagementChart.destroy();
+      engagementChart = new Chart(document.getElementById('engagementChart').getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Avg Engagement', data: avgEng, borderColor:'blue', fill:false, tension:0.2 }] },
+        options: { responsive:false, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+      });
+
+      if (ctrChart) ctrChart.destroy();
+      ctrChart = new Chart(document.getElementById('ctrChart').getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets: [{ label:'CTR (%)', data: ctr.map(v => v*100), borderColor:'green', fill:false, tension:0.2 }] },
+        options: { responsive:false, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    function startAutoRefresh() {
+      if (autoTimer) clearInterval(autoTimer);
+      autoTimer = setInterval(() => loadFeed(currentPage), 5000);
+    }
+
+    loadFeed(1);
+    startAutoRefresh();
+  </script>
+</body>
+</html>
