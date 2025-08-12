@@ -1,8 +1,4 @@
-Here’s your README.md without any emojis:
 
-markdown
-Copy
-Edit
 # RL Content Ranker Dashboard
 
 A reinforcement learning–based content ranking system with an interactive dashboard, CTR tracking, and persistent metrics storage.
@@ -30,9 +26,7 @@ content_ranker/
 ├── .gitignore # Git ignore list
 ├── README.md # Project documentation
 
-yaml
-Copy
-Edit
+
 
 ---
 
@@ -50,43 +44,29 @@ Edit
 ## Installation
 
 ### 1. Clone repository
-```bash
+
 git clone <your-repo-url>
 cd content_ranker
 2. Set up Python environment
-bash
-Copy
-Edit
+
 python -m venv venv
 Activate environment:
 
 Windows:
 
-bash
-Copy
-Edit
+
 venv\Scripts\activate
 Mac/Linux:
-
-bash
-Copy
-Edit
 source venv/bin/activate
+
 3. Install dependencies
-bash
-Copy
-Edit
 pip install -r requirements.txt
 Run Backend
-bash
-Copy
-Edit
 uvicorn app.main:app --reload
+
 Open Dashboard
-cpp
-Copy
-Edit
 http://127.0.0.1:8000
+
 Usage
 View ranked content in a table.
 
@@ -114,14 +94,10 @@ Data persists across server restarts.
 Stress Testing
 Run simulated feedback to see ranking adapt:
 
-bash
-Copy
-Edit
+
 python app/stress_test.py
 # OR
 python simulation/simulate_users.py
-Docker (Optional)
-Build and run with Docker:
 
 bash
 Copy
